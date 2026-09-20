@@ -10,6 +10,11 @@ controllers, and the game clock.
 > The volatile command queues are intentionally **not** saved — a reloaded world resumes
 > with empty queues and keeps playing from the saved game time.
 
+On Windows, checkpoint files are flushed through writable file handles. Directory
+flushing is unavailable through Python's Windows file API, so Windows does not have
+the same directory-entry durability guarantee across power loss as POSIX platforms.
+Checksums and checkpoint recovery validation still apply.
+
 Offline life is explicit and bounded. After loading, callers may run
 `advance_offline_life(actor, elapsed_seconds)` to advance a capped number of coarse ticks
 with cheap background controllers. The helper uses the normal actor tick, controller

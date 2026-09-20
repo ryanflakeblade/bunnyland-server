@@ -20,6 +20,7 @@ import hashlib
 import json
 import os
 import shutil
+import sys
 from collections import deque
 from collections.abc import Mapping
 from dataclasses import is_dataclass
@@ -700,11 +701,16 @@ def _checksum(path: Path) -> str:
 
 
 def _fsync_file(path: Path) -> None:
-    with path.open("rb") as handle:
+    # Windows requires a writable descriptor to flush file buffers.
+    with path.open("r+b") as handle:
         os.fsync(handle.fileno())
 
 
 def _fsync_directory(path: Path) -> None:
+    # Python's Windows file API cannot open and fsync a directory. Snapshot,
+    # checksum, and transaction files are still flushed before publication.
+    if sys.platform == "win32":
+        return
     descriptor = os.open(path, os.O_RDONLY)
     try:
         os.fsync(descriptor)

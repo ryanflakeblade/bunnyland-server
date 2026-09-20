@@ -3016,6 +3016,26 @@ def test_yaml_module_missing_extra_raises(monkeypatch):
         _yaml_module()
 
 
+def test_fsync_file_preserves_contents_and_requires_existing_file(tmp_path):
+    path = tmp_path / "snapshot.json"
+    contents = b'{"checkpoint": "complete"}\n'
+    path.write_bytes(contents)
+    persistence._fsync_file(path)
+    assert path.read_bytes() == contents
+    with pytest.raises(FileNotFoundError):
+        persistence._fsync_file(tmp_path / "missing.json")
+
+
+def test_windows_directory_sync_does_not_open_directory(tmp_path, monkeypatch):
+    monkeypatch.setattr(persistence.sys, "platform", "win32")
+
+    def unexpected_open(*args, **kwargs):
+        pytest.fail("Windows directory sync must not open a file descriptor")
+
+    monkeypatch.setattr(persistence.os, "open", unexpected_open)
+    persistence._fsync_directory(tmp_path)
+
+
 @pytest.mark.parametrize("suffix", [".json", ".yaml"])
 def test_save_is_checksummed_rotated_and_restorable(tmp_path, suffix):
     actor = WorldActor()
