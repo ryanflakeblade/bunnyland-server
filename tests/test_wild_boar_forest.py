@@ -1,5 +1,6 @@
 """Authored scene behavior, information boundaries, and restart/handoff contracts."""
 
+import asyncio
 from dataclasses import replace
 
 import pytest
@@ -260,6 +261,9 @@ async def test_qwen_scene_handoff_and_reload(monkeypatch, tmp_path):
     )
     await backend.start()
     try:
+        from bunnyland.llm_agents.player_turn_dispatch import PlayerTurnDispatch
+
+        assert isinstance(backend._loop.dispatch, PlayerTurnDispatch)
         repl = BunnylandRepl(backend)
         await repl.refresh()
         characters = await backend.fetch_character_list()
@@ -310,6 +314,113 @@ async def test_qwen_scene_handoff_and_reload(monkeypatch, tmp_path):
             assert knowledge(restored, cid) == memories
     finally:
         await backend.close()
+
+
+@pytest.fixture
+async def player_turn_scene(scene):
+    from bunnyland.llm_agents.player_turn_dispatch import PlayerTurnDispatch
+
+    actor, result = scene
+    for cid in result.characters.values():
+        controller = spawn_entity(
+            actor.world, [LLMControllerComponent(profile_name="default", model="test")]
+        )
+        actor.assign_controller(cid, controller.id)
+    human = spawn_entity(actor.world, [WebControllerComponent(client_id="test-player")])
+    actor.assign_controller(result.characters["lu"], human.id)
+
+    class RecordingAgent:
+        def __init__(self):
+            self.calls = []
+            self.ready = asyncio.Event()
+            self.ready.set()
+
+        async def decide(
+            self, prompt, context, *, character_id, model=None, provider=None, tools=None
+        ):
+            self.calls.append((character_id, context))
+            await self.ready.wait()
+            return ToolCall("say", {"text": "听见了。"})
+
+    agent = RecordingAgent()
+    dispatch = PlayerTurnDispatch(actor, builder(actor), agent)
+    yield actor, result, dispatch, agent
+    dispatch.close()
+
+
+async def test_player_turn_idle_named_speech_and_no_ai_chain(player_turn_scene):
+    actor, result, dispatch, agent = player_turn_scene
+    for _ in range(5):
+        await dispatch.run_once()
+        await actor.tick(1)
+    assert not agent.calls
+    # Lu is hidden: nobody in the clearing can hear him.
+    await act(actor, result, "lu", tool="say", text="林冲，你好吗？")
+    await dispatch.run_once()
+    assert not agent.calls
+    await act(actor, result, "lu", tool="move", direction="现身")
+    await dispatch.run_once()
+    await dispatch.await_pending()
+    assert len(agent.calls) == 3
+    await actor.tick(1)
+    agent.calls.clear()
+    await act(actor, result, "lu", tool="say", text="林冲，你好吗？")
+    await dispatch.run_once()
+    await dispatch.await_pending()
+    assert [cid for cid, _ in agent.calls] == [str(result.characters["lin"])]
+    for _ in range(5):
+        await actor.tick(1)
+        await dispatch.run_once()
+        await dispatch.await_pending()
+    assert len(agent.calls) == 1
+    # Read-only or rejected commands must not wake the residents.
+    await act(actor, result, "lu", tool="look")
+    await act(actor, result, "lu", tool="move", direction="不存在")
+    await dispatch.run_once()
+    assert len(agent.calls) == 1
+
+
+async def test_player_turn_merges_events_during_inflight_request(player_turn_scene):
+    actor, result, dispatch, agent = player_turn_scene
+    await act(actor, result, "lu", tool="move", direction="现身")
+    await dispatch.run_once()
+    await dispatch.await_pending()
+    await actor.tick(1)
+    agent.calls.clear()
+    agent.ready.clear()
+    await act(actor, result, "lu", tool="say", text="林冲，你好吗？")
+    await dispatch.run_once()
+    assert len(agent.calls) == 1
+    for text in ("林冲，哪里痛？", "林冲，我来救你。"):
+        await act(actor, result, "lu", tool="say", text=text)
+        await dispatch.run_once()
+    assert len(agent.calls) == 1
+    agent.ready.set()
+    await dispatch.await_pending()
+    await dispatch.run_once()
+    await dispatch.await_pending()
+    assert len(agent.calls) == 2
+    await actor.tick(1)
+    await dispatch.run_once()
+    assert len(agent.calls) == 2
+
+
+async def test_player_turn_stale_trigger_does_not_survive_handoff(player_turn_scene):
+    actor, result, dispatch, agent = player_turn_scene
+    await act(actor, result, "lu", tool="move", direction="现身")
+    cid = result.characters["lin"]
+    human = spawn_entity(actor.world, [WebControllerComponent(client_id="second-player")])
+    actor.assign_controller(cid, human.id)
+    controller = spawn_entity(
+        actor.world, [LLMControllerComponent(profile_name="default", model="test")]
+    )
+    actor.assign_controller(cid, controller.id)
+    await dispatch.run_once()
+    await dispatch.await_pending()
+    assert {cid for cid, _ in agent.calls} == {
+        str(result.characters["dong"]),
+        str(result.characters["xue"]),
+    }
 
 
 @pytest.mark.parametrize(

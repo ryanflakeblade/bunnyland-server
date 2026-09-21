@@ -722,7 +722,14 @@ class LocalBackend(Backend):
             if self.supports_character_chat
             else None
         )
-        dispatch = ControllerDispatch(
+        from ..llm_agents.player_turn_dispatch import PlayerTurnDispatch
+
+        dispatch_type = (
+            PlayerTurnDispatch
+            if self.autonomous_llm and self.generator_name == "wild-boar-forest"
+            else ControllerDispatch
+        )
+        dispatch = dispatch_type(
             self.actor,
             builder,
             terminal_agent if self.autonomous_llm else ScriptedAgent([]),
