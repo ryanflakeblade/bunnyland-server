@@ -20,7 +20,7 @@ from __future__ import annotations
 
 import asyncio
 import os
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from rich.style import Style
@@ -47,7 +47,7 @@ from ..server.models import CharacterSummaryView
 from ..terminal_generators import available_generators as available_generators
 from ..terminal_generators import format_generator_lines as format_generator_lines
 from ..tui import events as tui_events
-from ..tui.backend import Backend
+from ..tui.backend import Backend, ControlClaim
 from ..tui.model import KIND_ICON, World, entity_icon, entity_name, fmt_points, has
 from .completion import complete_line, reference_candidates
 
@@ -195,7 +195,7 @@ class BunnylandRepl:
         self.show_icons = show_icons
         self.world = World()
         self.player_id = ""
-        self.control: tuple[str, int] | None = None
+        self.control: ControlClaim | None = None
         self.character_list: list[CharacterSummaryView] = []
         self._defs = {definition.name: definition for definition in definitions}
         self._events = tui_events.EventNarrator()
@@ -235,7 +235,7 @@ class BunnylandRepl:
                 projected_control = self.world.control(self.player_id)
                 if self.control:
                     if projected_control and projected_control[0] == self.control[0]:
-                        self.control = projected_control
+                        self.control = replace(self.control, generation=projected_control[1])
                     else:
                         self.control = None
             else:
@@ -283,6 +283,10 @@ class BunnylandRepl:
         summary = next((s for s in self.character_list if s.character_id == chosen), None)
         if summary is None:
             return f"No such player: {name!r}. Try 'who'."
+        if self.player_id and self.player_id != chosen:
+            released = await self._release()
+            if self.player_id:
+                return released.plain
         self.control = await self.backend.claim(chosen, self.world)
         if self.control is None:
             return f"Could not claim {summary.name}."
@@ -294,6 +298,10 @@ class BunnylandRepl:
         if not self.player_id:
             return Text("You aren't playing a character.")
         name = entity_name(self.world.get(self.player_id)) or self.player_id
+        if self.control is not None:
+            released = await self.backend.release_controller(self.player_id, self.control)
+            if released is None:
+                return Text(f"Could not release {name}; you still control this character.")
         self.player_id = ""
         self.control = None
         self.world = World()

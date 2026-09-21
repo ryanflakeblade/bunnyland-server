@@ -27,7 +27,7 @@ from bunnyland.repl.client import (
     resolve_name,
 )
 from bunnyland.repl.completion import complete_line, reference_candidates, value_candidates
-from bunnyland.tui.backend import Backend, LocalBackend, RemoteBackend, SubmitResult
+from bunnyland.tui.backend import Backend, ControlClaim, LocalBackend, RemoteBackend, SubmitResult
 from bunnyland.tui.generator_selector import GeneratorSelection, WorldGeneratorSelector
 from bunnyland.tui.model import World, entity_name
 from bunnyland.tui.screens import SignInCredentials, SignInScreen
@@ -294,7 +294,9 @@ class RecordingBackend(Backend):
         return SubmitResult(accepted=True)
 
     async def claim(self, player_id, world):
-        return World.parse(self.snapshot).control(player_id) or ("controller:new", 0)
+        return ControlClaim(
+            *(World.parse(self.snapshot).control(player_id) or ("controller:new", 0))
+        )
 
 
 def _repl(snapshot: dict | None = None, *, player: bool = True) -> BunnylandRepl:
@@ -303,7 +305,7 @@ def _repl(snapshot: dict | None = None, *, player: bool = True) -> BunnylandRepl
     repl.character_list = _character_list_from_snapshot(snapshot or _snapshot())
     if player:
         repl.player_id = PLAYER
-        repl.control = ("controller:1", 2)
+        repl.control = ControlClaim("controller:1", 2)
     return repl
 
 
@@ -486,8 +488,7 @@ async def test_drain_events_surfaces_scene_image_and_failure():
         "event": {"world_epoch": 13, "purpose": "event"},
     }
     assert any(
-        "video generation failed" in line.plain
-        for line in repl.drain_events([video_failure])
+        "video generation failed" in line.plain for line in repl.drain_events([video_failure])
     )
 
 
@@ -499,6 +500,20 @@ async def test_release_drops_the_current_player():
     assert repl.control is None
     # Nothing to release the second time.
     assert "aren't playing" in (await repl.dispatch("release")).plain
+
+
+async def test_release_failure_keeps_character_and_blocks_switch():
+    class RejectReleaseBackend(RecordingBackend):
+        async def release_controller(self, player_id, control):
+            return None
+
+    repl = _repl()
+    repl.backend = RejectReleaseBackend()
+    control = repl.control
+    assert "Could not release" in (await repl.dispatch("release")).plain
+    assert repl.player_id == PLAYER and repl.control == control
+    assert "Could not release" in await repl.select_player("Marlow")
+    assert repl.player_id == PLAYER and repl.control == control
 
 
 async def test_queued_lists_commands_and_cancel_removes_them():
@@ -526,7 +541,7 @@ async def test_queued_lists_commands_and_cancel_removes_them():
     repl.world = World.parse(_snapshot())
     repl.character_list = _character_list_from_snapshot(_snapshot())
     repl.player_id = PLAYER
-    repl.control = ("controller:1", 2)
+    repl.control = ControlClaim("controller:1", 2)
 
     listed = await repl.dispatch("queued")
     assert "cmd-1" in listed.plain and "wait" in listed.plain
@@ -613,7 +628,7 @@ async def test_dispatch_action_surfaces_submit_rejection_reason():
     repl.world = World.parse(_snapshot())
     repl.character_list = _character_list_from_snapshot(_snapshot())
     repl.player_id = PLAYER
-    repl.control = ("controller:1", 2)
+    repl.control = ControlClaim("controller:1", 2)
 
     message = await repl.dispatch("wait")
     assert message.plain.startswith("✗ ⏳ wait")
@@ -904,7 +919,7 @@ async def test_refresh_clears_claim_when_projection_missing():
 
     repl = BunnylandRepl(NoProjectionBackend())
     repl.player_id = PLAYER
-    repl.control = ("controller:1", 2)
+    repl.control = ControlClaim("controller:1", 2)
     await repl.refresh()
     assert repl.player_id == PLAYER
     assert repl.control is None
@@ -1054,7 +1069,7 @@ async def test_refresh_drops_missing_player():
     snapshot["entities"] = [e for e in snapshot["entities"] if e["id"] != PLAYER]
     repl = BunnylandRepl(RecordingBackend(snapshot))
     repl.player_id = PLAYER
-    repl.control = ("controller:1", 2)
+    repl.control = ControlClaim("controller:1", 2)
     await repl.refresh()
     assert repl.player_id == "" and repl.control is None
 
@@ -1080,7 +1095,7 @@ async def test_refresh_clears_stale_control_and_play_reclaims():
     repl = BunnylandRepl(backend)
     repl.character_list = _character_list_from_snapshot(_snapshot())
     repl.player_id = PLAYER
-    repl.control = ("controller:1", 2)
+    repl.control = ControlClaim("controller:1", 2)
 
     await repl.refresh()
     assert repl.player_id == PLAYER
@@ -1313,7 +1328,7 @@ async def test_app_status_line_updates_as_the_world_advances():
     app = BunnylandReplApp(TickingBackend())
     async with app.run_test():
         app.repl.player_id = PLAYER
-        app.repl.control = ("controller:1", 2)
+        app.repl.control = ControlClaim("controller:1", 2)
         await app._safe_refresh()
         before = app.sub_title
         await app._safe_refresh()
@@ -2098,7 +2113,7 @@ async def test_repl_live_update_worker_suppresses_polling_and_tracks_player_chan
 
     app = BunnylandReplApp(LiveBackend(_snapshot()))
     app.repl.player_id = PLAYER
-    app.repl.control = ("controller:1", 2)
+    app.repl.control = ControlClaim("controller:1", 2)
     refreshes = []
 
     async def safe_refresh(*_args, **_kwargs):

@@ -34,6 +34,26 @@ JSON 中中文可能写成 `\uXXXX` 转义，这是正常的 JSON 编码，读�
 
 ## 接管角色与输入动作
 
+### 四人使用 Qwen，真人按需接管
+
+在已设置 `OPENROUTER_API_KEY` 和 `OPENROUTER_SERVER_URL` 的同一个 PowerShell
+窗口运行（URL 指向阿里云，`openrouter` 是这里复用的兼容接口适配器）：
+
+```powershell
+uv run --extra repl --extra server --extra llm bunnyland repl --generator wild-boar-forest --llm --chat-provider openrouter --chat-model qwen3.8-omni-flash --claim-fallback llm
+```
+
+这会新建世界，不会加载或改写已有的 `wild-boar-forest.json`。场景仍由手工定义，
+四人的决策由 Qwen 负责，不再保证规则模式的救援结局。未启用 `--llm` 时仍是离线规则模式。
+
+输入 `play 林冲` 接管林冲，其余三人继续由 Qwen 控制。输入 `play 鲁智深` 时，
+先把林冲交回 Qwen，再接管鲁智深。输入 `release` 交还当前角色。
+角色的知识、目标和关系保留；界面刷新保留控制权凭证，交还后沿用配置的模型和服务提供方。
+可用 `say text=鲁智深，你怎么在这里？` 说话，其他角色按各自感知和目标决定是否回应。
+
+自动运行期间，即使你没有输入，AI 角色仍可能调用模型并消耗 token；本命令没有费用上限。
+退出本地程序会停止世界运行。这个本地 REPL 命令不自动保存世界。
+
 `serve --ticks N` 是自动模拟，不会弹出聊天窗口。交互操作使用现有的
 [REPL](clients/repl.md) 或 [TUI](clients/tui.md)，它们需要相应的可选客户端依赖。
 例如在已安装 REPL 依赖的环境中，新建交互场景：

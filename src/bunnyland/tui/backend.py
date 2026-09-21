@@ -1083,7 +1083,17 @@ class LocalBackend(Backend):
                     self.actor.world,
                     LLMControllerComponent(
                         profile_name="default",
-                        model=os.environ.get("BUNNYLAND_CHARACTER_MODEL", "deepseek-v4-flash"),
+                        model=(
+                            self.chat_config.model
+                            if self.chat_config is not None
+                            else os.environ.get("BUNNYLAND_CHARACTER_MODEL", "deepseek-v4-flash")
+                        ),
+                        provider=(
+                            "openrouter"
+                            if self.chat_config is not None
+                            and self.chat_config.provider == "openrouter"
+                            else "ollama"
+                        ),
                     ),
                 )
                 kind = "llm"

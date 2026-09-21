@@ -5,8 +5,12 @@ from dataclasses import replace
 import pytest
 
 from bunnyland.core.components import DeadComponent, IdentityComponent
-from bunnyland.core.controllers import BehaviorControllerComponent, WebControllerComponent
-from bunnyland.core.ecs import container_of, replace_component, spawn_entity
+from bunnyland.core.controllers import (
+    BehaviorControllerComponent,
+    LLMControllerComponent,
+    WebControllerComponent,
+)
+from bunnyland.core.ecs import container_of, parse_entity_id, replace_component, spawn_entity
 from bunnyland.core.edges import Contains, ControlledBy
 from bunnyland.core.events import ActorMovedEvent, event_base, serialized_event_visible_to
 from bunnyland.core.handlers.base import HandlerContext
@@ -226,6 +230,86 @@ async def test_reload_resumes_scene_and_controller_registration(scene, tmp_path)
     assert stage(restored, result) == "rescued"
     await act(restored, result, "lin", tool="move", direction="出林")
     assert stage(restored, result) == "rescued"
+
+
+async def test_qwen_scene_handoff_and_reload(monkeypatch, tmp_path):
+    from bunnyland.repl.client import BunnylandRepl
+    from bunnyland.terminal_config import ResolvedTerminalChatConfig
+    from bunnyland.tui.backend import LocalBackend
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    # Exercise world/control persistence independently of OS credential-file permissions.
+    monkeypatch.setattr("bunnyland.tui.backend.load_claim_control", lambda *args: None)
+    monkeypatch.setattr("bunnyland.tui.backend.save_claim_control", lambda *args: None)
+    monkeypatch.setattr(
+        "bunnyland.tui.backend.build_terminal_chat_agent", lambda config: ScriptedAgent([])
+    )
+    backend = LocalBackend(
+        generator="wild-boar-forest",
+        client_id="forest-test",
+        autorun=False,
+        autonomous_llm=True,
+        fallback_controller="llm",
+        chat_config=ResolvedTerminalChatConfig(
+            enabled=True,
+            provider="openrouter",
+            model="qwen3.8-omni-flash",
+            ollama_host="",
+            openrouter_server_url="https://example.invalid/v1",
+        ),
+    )
+    await backend.start()
+    try:
+        repl = BunnylandRepl(backend)
+        await repl.refresh()
+        characters = await backend.fetch_character_list()
+        assert len(characters) == 4
+        initial_knowledge = {}
+        for character in characters:
+            cid = parse_entity_id(character.character_id)
+            initial_knowledge[cid] = knowledge(backend.actor, cid)
+            controller_id = backend.actor.world.get_entity(cid).get_relationships(ControlledBy)[0][
+                1
+            ]
+            config = backend.actor.world.get_entity(controller_id).get_component(
+                LLMControllerComponent
+            )
+            assert (config.model, config.provider) == ("qwen3.8-omni-flash", "openrouter")
+        assert "You are now 林冲" in await repl.select_player("林冲")
+        assert repl.control.claim_id and repl.control.claim_secret
+        claimed = repl.control
+        await repl.refresh()
+        assert repl.control == claimed
+        lin = next(
+            cid
+            for cid in initial_knowledge
+            if backend.actor.world.get_entity(cid).get_component(IdentityComponent).name == "林冲"
+        )
+        assert (
+            backend.actor._controller_kind(
+                backend.actor.world.get_entity(lin).get_relationships(ControlledBy)[0][1]
+            )
+            == "web"
+        )
+        assert "You are now 鲁智深" in await repl.select_player("鲁智深")
+        lin_controller = backend.actor.world.get_entity(lin).get_relationships(ControlledBy)[0][1]
+        assert (
+            backend.actor.world.get_entity(lin_controller)
+            .get_component(LLMControllerComponent)
+            .model
+            == "qwen3.8-omni-flash"
+        )
+        assert "Released" in (await repl.dispatch("release")).plain
+        path = tmp_path / "qwen-world.json"
+        save_world(backend.actor, path, meta=backend.meta)
+        restored, _ = load_world(path, registry=PluginRegistry(bunnyland_plugins()))
+        for cid, memories in initial_knowledge.items():
+            controller_id = restored.world.get_entity(cid).get_relationships(ControlledBy)[0][1]
+            config = restored.world.get_entity(controller_id).get_component(LLMControllerComponent)
+            assert (config.model, config.provider) == ("qwen3.8-omni-flash", "openrouter")
+            assert knowledge(restored, cid) == memories
+    finally:
+        await backend.close()
 
 
 @pytest.mark.parametrize(

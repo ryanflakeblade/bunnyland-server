@@ -319,7 +319,6 @@ async def wild_boar_forest_generator(
     seed: str,
     options: GenOptions,
 ) -> InstantiatedWorld:
-    del options
     # Only this scene requires social/persona mechanics; keep the worldgen plugin
     # usable in existing minimal installations that generate other worlds.
     enabled = actor.plugins.plugins if actor.plugins is not None else {}
@@ -365,7 +364,9 @@ async def wild_boar_forest_generator(
                 room_key="grove" if role == "lu" else "clearing",
                 description=f"{name}，身在野猪林。",
                 goals=(GOALS[role],),
-                controller="behavioral",
+                controller="llm" if options.llm else "behavioral",
+                llm_model=options.model,
+                llm_provider=options.provider,
                 behavior_name="wild-boar-forest",
                 with_needs=False,
             )
