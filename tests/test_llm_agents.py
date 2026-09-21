@@ -4054,7 +4054,9 @@ async def test_openrouter_agent_passes_server_url_to_client(monkeypatch):
     assert agent._client.kwargs == {
         "api_key": "key",
         "server_url": "https://router.example",
+        "async_client": agent._client.kwargs["async_client"],
     }
+    await agent._client.kwargs["async_client"].aclose()
 
 
 async def test_provider_router_raises_for_unknown_provider():

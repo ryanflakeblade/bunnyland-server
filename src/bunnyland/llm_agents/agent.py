@@ -23,6 +23,7 @@ from contextlib import contextmanager
 from contextvars import ContextVar
 from dataclasses import dataclass
 from typing import Literal, Protocol
+from urllib.parse import urlsplit
 
 from pydantic import JsonValue, TypeAdapter
 
@@ -1309,6 +1310,18 @@ class OpenRouterAgent:
         kwargs = {"api_key": api_key}
         if server_url:
             kwargs["server_url"] = server_url
+        self._compatible_endpoint = bool(
+            server_url and urlsplit(server_url).hostname != "openrouter.ai"
+        )
+        if self._compatible_endpoint:
+            import httpx
+
+            from .compatible_transport import CompatibleTransport
+
+            kwargs["async_client"] = httpx.AsyncClient(
+                transport=CompatibleTransport(httpx.AsyncHTTPTransport()),
+                follow_redirects=True,
+            )
         self._client = OpenRouter(**kwargs)
         self._model = model
         self._reasoning = reasoning
@@ -1376,7 +1389,11 @@ class OpenRouterAgent:
             _record_llm_usage(
                 "openrouter",
                 resolved_model,
-                await _openrouter_enriched_usage(self._client, response),
+                (
+                    _openrouter_usage(response)
+                    if self._compatible_endpoint
+                    else await _openrouter_enriched_usage(self._client, response)
+                ),
             )
             view = _openrouter_response_view(response, message)
             last_rejection = _response_filter_rejection(
@@ -1492,7 +1509,11 @@ class OpenRouterAgent:
             _record_llm_usage(
                 "openrouter",
                 resolved_model,
-                await _openrouter_enriched_usage(self._client, response),
+                (
+                    _openrouter_usage(response)
+                    if self._compatible_endpoint
+                    else await _openrouter_enriched_usage(self._client, response)
+                ),
             )
             message = response.choices[0].message
             view = _openrouter_response_view(response, message)

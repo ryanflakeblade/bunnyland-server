@@ -39,6 +39,9 @@ JSON 中中文可能写成 `\uXXXX` 转义，这是正常的 JSON 编码，读�
 在已设置 `OPENROUTER_API_KEY` 和 `OPENROUTER_SERVER_URL` 的同一个 PowerShell
 窗口运行（URL 指向阿里云，`openrouter` 是这里复用的兼容接口适配器）：
 
+兼容端点缺少 `system_fingerprint` 时，客户端将其视为未知（`null`），
+不影响角色动作解析；用量取自回复，不查询 OpenRouter 专用的账单接口。
+
 ```powershell
 uv run --extra repl --extra server --extra llm bunnyland repl --generator wild-boar-forest --llm --chat-provider openrouter --chat-model qwen3.8-omni-flash --claim-fallback llm
 ```
