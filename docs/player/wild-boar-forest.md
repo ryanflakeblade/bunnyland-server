@@ -31,6 +31,8 @@ uv run bunnyland serve --load wild-boar-forest.json --ticks 5 --tick-seconds 1 -
 
 JSON 中中文可能写成 `\uXXXX` 转义，这是正常的 JSON 编码，读入后仍然是中文。
 场景文本为简体中文；Bunnyland 原有界面、通用提示和错误信息仍可能使用英文。
+终端对话只显示人物、台词和说话方式；定向说话使用箭头显示已知收件人。
+意图推断等调试字段保留在原始事件中，不混入玩家看到的台词。
 
 ## 接管角色与输入动作
 

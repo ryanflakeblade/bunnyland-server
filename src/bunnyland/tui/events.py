@@ -159,6 +159,18 @@ class EventNarrator:
         if event_type == "RoomLookedEvent" and event.get("summary"):
             prefix = "👁️ " if show_icons else ""
             return Text(f"{prefix}{event['summary']}")
+        if event_type in {"SpeechSaidEvent", "SpeechToldEvent"}:
+            speaker = name_for(event.get("actor_id") or "") or "Someone"
+            approach = event.get("approach")
+            if approach:
+                speaker += f"（{approach}）"
+            if event_type == "SpeechToldEvent":
+                recipients = [name_for(str(target)) for target in event.get("target_ids", ())]
+                names = [name for name in recipients if name]
+                if names:
+                    speaker += " → " + "、".join(names)
+            prefix = "💬 " if show_icons else ""
+            return Text(f"{prefix}{speaker}：{event.get('text', '')}")
         label = _humanize_event_type(event_type)
         icon = _event_icon(event_type, event) if show_icons else ""
         actor = name_for(event.get("actor_id") or "") if event.get("actor_id") else None
