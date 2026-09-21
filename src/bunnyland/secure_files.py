@@ -1,14 +1,22 @@
-"""Owner-only, no-follow persistence for terminal credentials and identities."""
+"""Terminal file persistence with POSIX ownership checks or inherited Windows ACLs.
+
+Windows does not expose POSIX uid ownership or implement owner-only chmod modes.
+Access there is governed by the containing directory's Windows ACL; callers should
+use a private user profile directory. Regular-file and symlink checks apply on both.
+"""
 
 from __future__ import annotations
 
 import os
 import stat
+import sys
 from pathlib import Path
 from uuid import uuid4
 
 
 def _require_owned(metadata: os.stat_result, path: Path) -> None:
+    if sys.platform == "win32":
+        return
     if metadata.st_uid != os.getuid():
         raise PermissionError(f"path is not owned by the current user: {path}")
 
