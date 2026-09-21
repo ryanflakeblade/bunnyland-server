@@ -366,6 +366,9 @@ uv run bunnyland serve --generator voidsim-demo --ticks 5
 
 **Standalone and genre-spoof worlds**
 
+- `wild-boar-forest` — a manually authored Simplified Chinese Water Margin scene with
+  four residents, private knowledge, controller handoff, and rescue/escape/ambush branches.
+  See the [Chinese play guide](docs/player/wild-boar-forest.md).
 - `apartment-demo` — a quirky NYC apartment building full of eccentric tenants,
   backstories, homes, daily routines, hidden corners, and a rat-man in the warren below.
 - `clue-snack-demo`, `dive-scheme-demo`, `star-opera-demo`, and `gothic-count-demo` —

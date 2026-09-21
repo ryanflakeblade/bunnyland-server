@@ -365,6 +365,7 @@ def test_worldgen_plugin_contributes_named_generators():
 
     registry = collect_generators(bunnyland_plugins())
     assert {
+        "wild-boar-forest",
         "empty",
         "waiting-room",
         "halloween",
@@ -380,6 +381,7 @@ def test_worldgen_plugin_contributes_named_generators():
     # generators are selected by name and disappear if their plugin is dropped
     without = collect_generators([p for p in bunnyland_plugins() if p.id != WORLDGEN])
     assert "empty" not in without
+    assert "wild-boar-forest" not in without
     assert "waiting-room" not in without
     assert "halloween" not in without
     assert "holiday" not in without
@@ -422,8 +424,9 @@ def test_worldgen_plugin_contributes_named_generators():
     assert registry["storm-lighthouse-demo"].group == "scene demo"
     for generator in registry.values():
         assert generator.group
-        assert generator.description[0].isupper()
-        assert generator.description.endswith(".")
+        first = generator.description[0]
+        assert first.isupper() or first.lower() == first.upper()
+        assert generator.description.endswith((".", "。"))
     without_void = collect_generators([p for p in bunnyland_plugins() if p.id != VOIDSIM])
     assert "voidsim-demo" not in without_void
     without_nuke = collect_generators([p for p in bunnyland_plugins() if p.id != NUKESIM])

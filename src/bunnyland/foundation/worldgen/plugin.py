@@ -7,9 +7,11 @@ from bunnyland.foundation.tutorial.mechanics import (
     install_tutorial,
 )
 
-from ...plugins.ids import WORLDGEN
+from ...plugins.ids import CORE_VERBS, PERSONA, SOCIAL, WORLDGEN
 from ...plugins.model import (
+    CommandContribution,
     ContentContribution,
+    DependencyContribution,
     EcsContribution,
     Plugin,
     PluginPlacement,
@@ -26,22 +28,49 @@ from ...worldgen.generators import (
     tower_debate_generator,
     waiting_room_generator,
 )
+from ...worldgen.wild_boar_forest import (
+    FOREST_ACTIONS,
+    FOREST_DESCRIPTION,
+    ForestResident,
+    ForestSceneComponent,
+    ForestSceneEvent,
+    ForestSceneHandler,
+    forest_facts,
+    install_forest,
+    wild_boar_forest_generator,
+)
 
 
 def _definition() -> Plugin:
     return Plugin(
         id=WORLDGEN,
         name="World Generators",
+        dependencies=DependencyContribution(integrates_with=(CORE_VERBS, PERSONA, SOCIAL)),
         ecs=EcsContribution(
             components=(
                 HungryCourierControllerComponent,
                 TutorialGuideComponent,
                 TutorialOrientationProgressComponent,
-            )
+                ForestSceneComponent,
+            ),
+            edges=(ForestResident,),
         ),
-        runtime=RuntimeContribution(service_factories=(install_tutorial,)),
+        commands=CommandContribution(
+            action_definitions=FOREST_ACTIONS,
+            action_handlers=(ForestSceneHandler,),
+            typed_events=(ForestSceneEvent,),
+        ),
+        runtime=RuntimeContribution(service_factories=(install_tutorial, install_forest)),
         content=ContentContribution(
+            prompt_fragments=(forest_facts,),
             world_generators=(
+                WorldGenerator(
+                    "wild-boar-forest",
+                    wild_boar_forest_generator,
+                    FOREST_DESCRIPTION,
+                    group="scene demo",
+                    uses_seed=False,
+                ),
                 WorldGenerator(
                     "empty",
                     empty_generator,
@@ -92,7 +121,7 @@ def _definition() -> Plugin:
                     "Breadth-first graph, grown room-by-room.",
                     group="algorithmic",
                 ),
-            )
+            ),
         ),
     )
 

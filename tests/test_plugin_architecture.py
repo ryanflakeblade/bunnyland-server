@@ -174,10 +174,10 @@ def test_removed_compatibility_surfaces_cannot_return():
         ), path
 
 
-def test_all_444_bundled_handlers_use_the_pure_plan_contract():
+def test_all_445_bundled_handlers_use_the_pure_plan_contract():
     plugins = bunnyland_plugins()
     handlers = tuple(handler for plugin in plugins for handler in plugin.commands.action_handlers)
-    assert len(handlers) == 444
+    assert len(handlers) == 445
 
     root = Path(__file__).parents[1] / "src" / "bunnyland"
     forbidden_mutations = {

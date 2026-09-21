@@ -2,6 +2,12 @@ Below is the first-pass **master mechanics catalogue** for bunnyland. This is in
 
 ## Current v1 implemented-pack status
 
+The `worldgen` foundation also includes `wild-boar-forest`, a manually authored
+Simplified Chinese scene with Lin Chong, Lu Zhishen, Dong Chao, and Xue Ba. It reuses
+persona goals, private social knowledge, directed bonds, and controller handoff, and adds
+validated rescue/escape/ambush branches. See [the player guide](player/wild-boar-forest.md).
+General novel-to-world compilation remains unimplemented.
+
 The peaceful starter pack now has playable v1 coverage for the core catalogue loops:
 
 - `sandbox`: the deterministic `bunnyland-sandbox` generator builds Crossroads Arrival,
