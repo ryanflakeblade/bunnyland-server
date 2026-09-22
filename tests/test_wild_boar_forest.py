@@ -1,6 +1,7 @@
 """Authored scene behavior, information boundaries, and restart/handoff contracts."""
 
 import asyncio
+import json
 from dataclasses import replace
 
 import pytest
@@ -239,6 +240,7 @@ async def test_qwen_scene_handoff_and_reload(monkeypatch, tmp_path):
     from bunnyland.tui.backend import LocalBackend
 
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.chdir(tmp_path)
     # Exercise world/control persistence independently of OS credential-file permissions.
     monkeypatch.setattr("bunnyland.tui.backend.load_claim_control", lambda *args: None)
     monkeypatch.setattr("bunnyland.tui.backend.save_claim_control", lambda *args: None)
@@ -264,6 +266,8 @@ async def test_qwen_scene_handoff_and_reload(monkeypatch, tmp_path):
         from bunnyland.llm_agents.player_turn_dispatch import PlayerTurnDispatch
 
         assert isinstance(backend._loop.dispatch, PlayerTurnDispatch)
+        assert (tmp_path / "dialogue.jsonl").exists()
+        assert (tmp_path / "dialogue.txt").exists()
         repl = BunnylandRepl(backend)
         await repl.refresh()
         characters = await backend.fetch_character_list()
@@ -314,6 +318,46 @@ async def test_qwen_scene_handoff_and_reload(monkeypatch, tmp_path):
             assert knowledge(restored, cid) == memories
     finally:
         await backend.close()
+
+
+async def test_dialogue_records_committed_public_and_directed_speech(scene, tmp_path):
+    from bunnyland.dialogue import DialogueRecorder
+
+    actor, result = scene
+    path = tmp_path / "dialogue.jsonl"
+    recorder = DialogueRecorder(actor, path, world_id="forest-test")
+    await act(actor, result, "lin", tool="say", text="你们要做什么？")
+    await act(
+        actor,
+        result,
+        "dong",
+        tool="tell",
+        target_id=str(result.characters["xue"]),
+        text="等他睡着。",
+        approach="低声",
+    )
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    assert len(rows) == 2
+    assert rows[0]["speaker"] == "林冲" and rows[0]["kind"] == "public"
+    assert rows[0]["text"] == "你们要做什么？"
+    assert rows[1]["speaker"] == "董超" and rows[1]["recipients"] == ["薛霸"]
+    assert rows[1]["approach"] == "低声"
+    assert rows[1]["game_epoch_seconds"] == actor.epoch
+    assert "董超 → 薛霸（低声）" in path.with_suffix(".txt").read_text(encoding="utf-8")
+    # An unreachable recipient produces no dialogue entry.
+    await act(
+        actor, result, "lin", tool="tell", target_id=str(result.characters["lu"]), text="师兄？"
+    )
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 2
+    recorder.close()
+    await act(actor, result, "lin", tool="say", text="不再记录")
+    assert len(path.read_text(encoding="utf-8").splitlines()) == 2
+    resumed = DialogueRecorder(actor, path, world_id="another-world")
+    await act(actor, result, "lin", tool="say", text="新的一局")
+    rows = [json.loads(line) for line in path.read_text(encoding="utf-8").splitlines()]
+    assert len(rows) == 3 and rows[-1]["world_id"] == "another-world"
+    assert rows[-1]["session_id"] != rows[0]["session_id"]
+    resumed.close()
 
 
 @pytest.fixture

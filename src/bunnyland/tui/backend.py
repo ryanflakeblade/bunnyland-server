@@ -639,6 +639,7 @@ class LocalBackend(Backend):
         self.chat_config = chat_config
         self.autonomous_llm = autonomous_llm
         self.character_chat = None
+        self._dialogue = None
 
     @property
     def supports_character_chat(self) -> bool:
@@ -711,6 +712,12 @@ class LocalBackend(Backend):
             )
         await generator.generate(self.actor, self.seed, generation_options)
         self.meta = WorldMeta(seed=self.seed, generator=generator.name)
+        if self.generator_name == "wild-boar-forest":
+            from ..dialogue import DialogueRecorder
+
+            self._dialogue = DialogueRecorder(
+                self.actor, Path("dialogue.jsonl"), world_id=self.meta.world_id
+            )
 
         builder = PromptBuilder(
             self.actor.world,
@@ -754,6 +761,8 @@ class LocalBackend(Backend):
             self._loop.stop()
         if self._task is not None:
             await asyncio.gather(self._task, return_exceptions=True)
+        if self._dialogue is not None:
+            self._dialogue.close()
 
     async def fetch_snapshot(self) -> dict:
         return serialize_world(self.actor, self.meta)

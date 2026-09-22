@@ -25,6 +25,8 @@ build/
 
 # secrets
 .env
+/dialogue.jsonl
+/dialogue.txt
 compose.user.yml
 data/auth-users.yml
 data/auth-tokens.sqlite3*
