@@ -170,7 +170,19 @@ class EventNarrator:
                 if names:
                     speaker += " → " + "、".join(names)
             prefix = "💬 " if show_icons else ""
-            return Text(f"{prefix}{speaker}：{event.get('text', '')}")
+            line = Text(f"{prefix}{speaker}：{event.get('text', '')}")
+            intents = [
+                f"{label}：{event[key]}"
+                for key, label in (
+                    ("author_intent", "表达意图"),
+                    ("inferred_intent", "系统推断"),
+                    ("final_interpretation", "最终解读"),
+                )
+                if event.get(key)
+            ]
+            if intents:
+                line.append("\n    [" + "；".join(intents) + "]", style="dim")
+            return line
         label = _humanize_event_type(event_type)
         icon = _event_icon(event_type, event) if show_icons else ""
         actor = name_for(event.get("actor_id") or "") if event.get("actor_id") else None

@@ -1,4 +1,4 @@
-"""Player speech formatting preserves visibility without exposing intent metadata."""
+"""Player speech formatting separates dialogue, delivery, and intent annotations."""
 
 import pytest
 
@@ -7,7 +7,7 @@ from bunnyland.tui.events import EventNarrator
 
 @pytest.mark.parametrize("show_icons", [True, False])
 @pytest.mark.parametrize("directed", [True, False])
-def test_speech_shows_dialogue_and_delivery_only(show_icons, directed):
+def test_speech_shows_dialogue_delivery_and_intents(show_icons, directed):
     event = {
         "event_id": "speech-1",
         "actor_id": "lin",
@@ -35,6 +35,7 @@ def test_speech_shows_dialogue_and_delivery_only(show_icons, directed):
         show_icons=show_icons,
     )
     expected = "林冲（低声、诚恳）" + (" → 鲁智深" if directed else "") + "：师兄何出此言？"
+    expected += "\n    [表达意图：reassure；系统推断：neutral；最终解读：neutral]"
     assert [line.plain for line in lines] == [("💬 " if show_icons else "") + expected]
     assert event == original
     assert not narrator.drain_events(
