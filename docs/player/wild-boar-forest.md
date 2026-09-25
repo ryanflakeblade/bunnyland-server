@@ -125,3 +125,10 @@ Get-Content .\dialogue.txt -Encoding utf8 -Tail 40 -Wait
 
 世界存档是服务器的完整状态，包含全部秘密，不能把整个 JSON 当作玩家视图发送。
 玩家和自动控制器应使用角色范围内的投影。
+
+### AI 可选工具
+
+野猪林角色的模型请求只提供 `look`、`say`、`tell`、`move`、`forest_scene`、`wait`
+六个工具，不提供 `discover_action`。限制依据角色的 `ForestResident` 关系，重载存档后
+仍然生效；先前发现的其他工具也不会重新加入请求。这只缩小 AI 的工具选择，
+不改变玩家手动命令的权限、引擎动作验证、历史长度或唤醒频率，也不保证点名后一定说话。

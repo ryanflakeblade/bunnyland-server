@@ -140,6 +140,15 @@ async def test_forest_requests_show_history_and_private_context(
         assert len(second["messages"]) == 5
         assert len(third["messages"]) == 2
         for index, body in enumerate(requests):
+            offered_tools = body["tools"]
+            assert isinstance(offered_tools, list)
+            offered_names = set()
+            for tool in offered_tools:
+                assert isinstance(tool, dict)
+                function = tool["function"]
+                assert isinstance(function, dict)
+                offered_names.add(function["name"])
+            assert offered_names == {"look", "say", "tell", "move", "forest_scene", "wait"}
             messages = body["messages"]
             assert isinstance(messages, list)
             last = messages[-1]

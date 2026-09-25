@@ -26,7 +26,9 @@ and tool definitions. Each run overwrites these seven demo files. Without the en
 variable, pytest writes them into its temporary test directory instead.
 
 The test checks that the first Lin Chong request has two messages, his follow-up has five,
-and Dong Chao starts with two. It also checks character secrets stay out of other
+and Dong Chao starts with two. Every request must contain exactly `look`, `say`, `tell`,
+`move`, `forest_scene`, and `wait`, with no discovery tool. It also checks character
+secrets stay out of other
 characters' messages, and idle ticks and AI speech do not trigger extra calls. Public
 speech may appear in another character's observed events; that is distinct from sharing
 private history.

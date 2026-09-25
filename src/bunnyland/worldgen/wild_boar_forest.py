@@ -38,6 +38,7 @@ from .proposal import CharacterSpec, ExitSpec, RoomSpec, WorldProposal
 Role = Literal["lin", "lu", "dong", "xue"]
 Stage = Literal["opening", "threat", "distracted", "rescued", "escaped", "ambushed"]
 TERMINAL = frozenset({"rescued", "escaped", "ambushed"})
+FOREST_ALLOWED_TOOLS = frozenset({"look", "say", "tell", "move", "forest_scene", "wait"})
 FOREST_DESCRIPTION = "野猪林：林冲、鲁智深与两名差役的可分支场景。"
 STAGE_TEXT: dict[Stage, str] = {
     "opening": "押解队伍在古树下暂歇，林冲尚未被捆绑。",

@@ -831,9 +831,15 @@ class ControllerDispatch:
             if definition.name in discovered_names and definition.name not in contextual_names
         )
         offered = (*contextual, *discovered)
+        # Scene membership survives reloads; do not depend on the launch generator name.
+        from ..worldgen.wild_boar_forest import FOREST_ALLOWED_TOOLS, ForestResident
+
+        forest_resident = bool(character.get_relationships(ForestResident))
+        if forest_resident:
+            offered = tuple(d for d in offered if d.name in FOREST_ALLOWED_TOOLS)
         offered_names = {definition.name for definition in offered}
         schemas = tool_schemas(offered)
-        if prompted:
+        if prompted and not forest_resident:
             discovery = action_discovery_schema(
                 tuple(
                     definition

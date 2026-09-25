@@ -234,6 +234,37 @@ async def test_reload_resumes_scene_and_controller_registration(scene, tmp_path)
     assert stage(restored, result) == "rescued"
 
 
+async def test_forest_tool_allowlist_survives_reload_and_filters_discovered_actions(
+    scene, tmp_path
+):
+    from bunnyland.worldgen.wild_boar_forest import ForestResident
+
+    actor, result = scene
+    cid = result.characters["lin"]
+    controller = spawn_entity(
+        actor.world, [LLMControllerComponent(profile_name="default", model="test")]
+    )
+    actor.assign_controller(cid, controller.id)
+    path = tmp_path / "tool-policy.json"
+    save_world(actor, path, meta=WorldMeta(seed="test", generator="wild-boar-forest"))
+    restored, _ = load_world(path, registry=PluginRegistry(bunnyland_plugins()))
+    for world_actor in (actor, restored):
+        dispatch = ControllerDispatch(world_actor, builder(world_actor), ScriptedAgent([]))
+        try:
+            dispatch._discovered_actions[str(cid)] = {"remember", "practice_skill"}
+            projection = dispatch._build_projection(cid)
+            names = {schema["function"]["name"] for schema in projection.schemas}
+            assert names == {"look", "say", "tell", "move", "forest_scene", "wait"}
+            # A character without scene membership retains the original tool policy.
+            character = world_actor.world.get_entity(cid)
+            character.remove_relationship(ForestResident, result.rooms["clearing"])
+            projection = dispatch._build_projection(cid)
+            names = {schema["function"]["name"] for schema in projection.schemas}
+            assert {"remember", "practice_skill", "discover_action"} <= names
+        finally:
+            dispatch.close()
+
+
 async def test_qwen_scene_handoff_and_reload(monkeypatch, tmp_path):
     from bunnyland.repl.client import BunnylandRepl
     from bunnyland.terminal_config import ResolvedTerminalChatConfig
