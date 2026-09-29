@@ -1,0 +1,25 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Debug Bunnyland local llama.cpp",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "bunnyland.cli",
+      "args": [
+        "repl",
+        "--generator", "wild-boar-forest",
+        "--llm",
+        "--chat-provider", "openrouter",
+        "--chat-model", "Qwen/Qwen3-4B-GGUF:Q4_K_M",
+        "--openrouter-server-url", "http://localhost:8080/v1",
+        "--claim-fallback", "llm"
+      ],
+      "env": {
+        "OPENROUTER_API_KEY": "local-placeholder"
+      },
+      "console": "integratedTerminal",
+      "justMyCode": false
+    }
+  ]
+}

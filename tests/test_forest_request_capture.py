@@ -137,7 +137,9 @@ async def test_forest_requests_show_history_and_private_context(
 
         first, second, third = requests
         assert len(first["messages"]) == 2
-        assert len(second["messages"]) == 5
+        # The previous raw user/assistant/tool turns are replaced by one bounded
+        # deterministic summary before the next request.
+        assert len(second["messages"]) == 3
         assert len(third["messages"]) == 2
         for index, body in enumerate(requests):
             offered_tools = body["tools"]
@@ -162,7 +164,7 @@ async def test_forest_requests_show_history_and_private_context(
                     assert secret not in json.dumps(messages, ensure_ascii=False)
         second_text = json.dumps(second["messages"], ensure_ascii=False)
         assert replies[0] in second_text
-        assert questions[0] in second_text
+        assert "Conversation memory (deterministic visible-event summary" in second_text
         assert first["tools"]
 
         output = Path(os.environ.get("BUNNYLAND_REQUEST_DEMO_DIR", str(tmp_path)))

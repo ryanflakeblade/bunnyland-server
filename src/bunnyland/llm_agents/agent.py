@@ -29,6 +29,7 @@ from pydantic import JsonValue, TypeAdapter
 
 from .. import telemetry
 from ..prompts.builder import PromptContext
+from .history import compact_history
 from .tools import ToolCall, tool_schemas
 
 #: Default Ollama model (https://ollama.com/library/deepseek-v4-flash).
@@ -999,6 +1000,7 @@ class OllamaAgent:
         temperature: float | None = None,
         max_output_tokens: int | None = None,
         history_turns: int = 12,
+        max_history_events: int = 8,
         max_retries: int = DEFAULT_PROVIDER_RETRIES,
         retry_delay_seconds: float = DEFAULT_RETRY_DELAY_SECONDS,
         request_timeout_seconds: float | None = None,
@@ -1035,6 +1037,7 @@ class OllamaAgent:
         self._temperature = temperature
         self._max_output_tokens = max_output_tokens
         self._history_turns = history_turns
+        self._max_history_events = max(1, max_history_events)
         self._max_retries = max(0, max_retries)
         self._retry_delay_seconds = max(0.0, retry_delay_seconds)
         self._request_slots = asyncio.Semaphore(max(1, max_concurrent_requests))
@@ -1064,6 +1067,7 @@ class OllamaAgent:
         pending_tool = self._pending_tool_results.pop(character_id, None)
         if pending_tool is not None:
             history.append(_ollama_tool_result_history(pending_tool, context))
+        compact_history(history, max_events=self._max_history_events)
         user_message = {"role": "user", "content": prompt}
         system_prompt = _request_system_prompt(self._system_prompt)
         messages = [_character_system_message(system_prompt), *history, user_message]
@@ -1291,6 +1295,7 @@ class OpenRouterAgent:
         temperature: float | None = None,
         max_output_tokens: int | None = None,
         history_turns: int = 12,
+        max_history_events: int = 8,
         max_retries: int = DEFAULT_PROVIDER_RETRIES,
         retry_delay_seconds: float = DEFAULT_RETRY_DELAY_SECONDS,
         max_concurrent_requests: int = 4,
@@ -1328,6 +1333,7 @@ class OpenRouterAgent:
         self._temperature = temperature
         self._max_output_tokens = max_output_tokens
         self._history_turns = history_turns
+        self._max_history_events = max(1, max_history_events)
         self._max_retries = max(0, max_retries)
         self._retry_delay_seconds = max(0.0, retry_delay_seconds)
         self._request_slots = asyncio.Semaphore(max(1, max_concurrent_requests))
@@ -1355,6 +1361,7 @@ class OpenRouterAgent:
         pending_tool_call_id = self._pending_tool_results.pop(character_id, None)
         if pending_tool_call_id is not None:
             history.append(_openrouter_tool_result_history(pending_tool_call_id, context))
+        compact_history(history, max_events=self._max_history_events)
         user_message = {"role": "user", "content": prompt}
         system_prompt = _request_system_prompt(self._system_prompt)
         messages = [_character_system_message(system_prompt), *history, user_message]

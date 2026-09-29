@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 import sys
 import types
 from dataclasses import replace
@@ -1488,22 +1487,10 @@ async def test_ollama_agent_resends_prior_turns_as_context(monkeypatch):
     await agent.decide("turn two", None, character_id="char_1")
 
     client = agent._client
-    # The prior assistant tool call and its authoritative result retain provider-native roles.
+    # With no visible event result, raw provider turns are discarded before the next request.
     second = client.calls[1]
     assert second[0] == {"role": "system", "content": CHARACTER_SYSTEM_PROMPT}
-    assert second[1] == {"role": "user", "content": "turn one"}
-    assert second[2]["role"] == "assistant"
-    assert second[2]["tool_calls"] == [
-        {"function": {"name": "wait", "arguments": {}}}
-    ]
-    assert second[3]["role"] == "tool"
-    assert second[3]["tool_name"] == "wait"
-    assert json.loads(second[3]["content"]) == {
-        "events": [],
-        "omitted_event_count": 0,
-        "warnings": [],
-    }
-    assert second[4] == {"role": "user", "content": "turn two"}
+    assert second[1] == {"role": "user", "content": "turn two"}
 
 
 async def test_ollama_agent_returns_visible_events_as_structured_tool_result(monkeypatch):
@@ -1535,22 +1522,10 @@ async def test_ollama_agent_returns_visible_events_as_structured_tool_result(mon
     await agent.decide("turn one", context, character_id="hazel")
     await agent.decide("turn two", context, character_id="hazel")
 
-    result = agent._client.calls[1][3]
-    assert result["role"] == "tool"
-    assert result["tool_name"] == "wait"
-    assert json.loads(result["content"]) == {
-        "events": [
-            {
-                "event_id": "event-1",
-                "event_type": "CommandExecutedEvent",
-                "world_epoch": 12,
-                "summary": "Your move action completed.",
-            }
-        ],
-        "omitted_event_count": 2,
-        "omitted_event_epoch_range": [3, 8],
-        "warnings": ["The destination was blocked."],
-    }
+    result = agent._client.calls[1][1]
+    assert result["role"] == "user"
+    assert "Your move action completed." in result["content"]
+    assert "deterministic visible-event summary" in result["content"]
 
 
 async def test_ollama_agent_keeps_history_per_character(monkeypatch):
@@ -2821,13 +2796,7 @@ async def test_openrouter_agent_resends_prior_turns_as_context(monkeypatch):
 
     second = agent._client.chat.calls[1]["messages"]
     assert second[0] == {"role": "system", "content": CHARACTER_SYSTEM_PROMPT}
-    assert second[1] == {"role": "user", "content": "turn one"}
-    assert second[2]["role"] == "assistant"
-    assert second[2]["tool_calls"][0]["id"] == "call_wait"
-    assert second[3]["role"] == "tool"
-    assert second[3]["tool_call_id"] == "call_wait"
-    assert json.loads(second[3]["content"])["events"] == []
-    assert second[4] == {"role": "user", "content": "turn two"}
+    assert second[1] == {"role": "user", "content": "turn two"}
 
 
 async def test_openrouter_agent_sends_system_prompt_and_tool_schemas(monkeypatch):
