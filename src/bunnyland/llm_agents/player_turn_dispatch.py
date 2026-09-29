@@ -5,7 +5,14 @@ from relics import EntityId
 from ..core.components import CharacterComponent, IdentityComponent
 from ..core.ecs import container_of, parse_entity_id
 from ..core.edges import ControlledBy
-from ..core.events import CommandExecutedEvent, serialized_event_visible_to
+from ..core.events import (
+    CharacterReactionEvent,
+    CommandExecutedEvent,
+    CommandRejectedEvent,
+    EventVisibility,
+    event_base,
+    serialized_event_visible_to,
+)
 from ..core.world_actor import WorldActor
 from ..prompts.builder import PromptBuilder
 from .agent import CharacterAgent
@@ -18,9 +25,11 @@ class PlayerTurnDispatch(ControllerDispatch):
     def __init__(self, actor: WorldActor, builder: PromptBuilder, agent: CharacterAgent):
         super().__init__(actor, builder, agent)
         self._ready: dict[EntityId, tuple[EntityId, int]] = {}
+        self._pending_reactions: dict[EntityId, str] = {}
         for character in actor.world.query().with_all([CharacterComponent]).execute_entities():
             self._state_for(str(character.id))
         actor.bus.subscribe(CommandExecutedEvent, self._player_action)
+        actor.bus.subscribe(CommandRejectedEvent, self._agent_rejection)
 
     def _room_of(self, raw_id: str) -> str | None:
         entity_id = parse_entity_id(raw_id)
@@ -29,9 +38,22 @@ class PlayerTurnDispatch(ControllerDispatch):
         room_id = container_of(self.actor.world.get_entity(entity_id))
         return str(room_id) if room_id is not None else None
 
-    def _player_action(self, event: CommandExecutedEvent) -> None:
+    async def _player_action(self, event: CommandExecutedEvent) -> None:
         actor_id = parse_entity_id(event.actor_id or "")
         if actor_id is None or not self.actor.world.has_entity(actor_id):
+            return
+        player_id = self._pending_reactions.pop(actor_id, None)
+        if player_id is not None:
+            visible_result = any(
+                serialized_event_visible_to(
+                    result,
+                    character_id=player_id,
+                    room_of=self._room_of,
+                )
+                for result in event.result_events
+            )
+            if not visible_result:
+                await self._publish_reaction(actor_id, player_id, event.command_type)
             return
         actor = self.actor.world.get_entity(actor_id)
         controls = actor.get_relationships(ControlledBy)
@@ -74,6 +96,51 @@ class PlayerTurnDispatch(ControllerDispatch):
             if addressed_ids and character.id not in addressed_ids:
                 continue
             self._ready[character.id] = (controller[0], controller[1])
+            if character.id in addressed_ids:
+                self._pending_reactions[character.id] = str(actor_id)
+
+    async def _agent_rejection(self, event: CommandRejectedEvent) -> None:
+        actor_id = parse_entity_id(event.actor_id or "")
+        if actor_id is None:
+            return
+        player_id = self._pending_reactions.pop(actor_id, None)
+        if player_id is not None:
+            await self._publish_reaction(
+                actor_id,
+                player_id,
+                event.command_type,
+                f"动作被拒绝：{event.reason}",
+            )
+
+    async def _publish_reaction(
+        self,
+        actor_id: EntityId,
+        player_id: str,
+        command_type: str,
+        summary: str | None = None,
+    ) -> None:
+        if summary is None:
+            summary = {
+                "wait": "暂时没有行动。",
+                "look": "观察了周围环境。",
+                "inspect": "进行了观察。",
+                "move": "采取了移动行动。",
+                "say": "进行了公开发言。",
+                "tell": "发送了私下消息。",
+                "forest-scene": "推进了剧情。",
+            }.get(command_type, "采取了行动。")
+        await self.actor.bus.publish(
+            CharacterReactionEvent(
+                **event_base(
+                    self.actor.epoch,
+                    default_visibility=EventVisibility.DIRECTED,
+                    actor_id=str(actor_id),
+                    target_ids=(player_id,),
+                ),
+                command_type=command_type,
+                summary=summary,
+            )
+        )
 
     def _actable_characters(self) -> list[EntityId]:
         eligible = []
@@ -84,6 +151,7 @@ class PlayerTurnDispatch(ControllerDispatch):
                 continue
             if controller is None or expected != (controller[0], controller[1]):
                 self._ready.pop(character_id)
+                self._pending_reactions.pop(character_id, None)
                 continue
             if self._has_pending(str(character_id)):
                 continue
@@ -93,5 +161,7 @@ class PlayerTurnDispatch(ControllerDispatch):
 
     def close(self) -> None:
         self.actor.bus.unsubscribe(CommandExecutedEvent, self._player_action)
+        self.actor.bus.unsubscribe(CommandRejectedEvent, self._agent_rejection)
         self._ready.clear()
+        self._pending_reactions.clear()
         super().close()

@@ -399,6 +399,30 @@ def test_event_narrator_uses_normal_style_for_activity_and_dim_for_system():
     assert shown[2].style == "dim"
 
 
+def test_event_narrator_renders_character_reaction_summary():
+    world = World.parse(_snapshot())
+    narrator = EventNarrator()
+    [shown] = narrator.drain_events(
+        [
+            _event(
+                "reaction",
+                event_type="CharacterReactionEvent",
+                visibility="directed",
+                actor_id=MARLOW,
+                target_ids=(PLAYER,),
+                command_type="wait",
+                summary="暂时没有行动。",
+            )
+        ],
+        player_id=PLAYER,
+        room_of=world.room_of,
+        name_for=lambda entity_id: entity_name(world.get(entity_id)),
+    )
+
+    assert shown.plain == "Marlow：暂时没有行动。"
+    assert shown.style == "dim"
+
+
 def test_event_narrator_renders_inspection_fact_text_without_raw_records():
     world = World.parse(_snapshot())
     narrator = EventNarrator()

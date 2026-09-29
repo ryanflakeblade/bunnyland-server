@@ -154,6 +154,13 @@ class CommandExecutedEvent(DomainEvent):
     result_events: tuple[dict[str, EventValue], ...] = ()
 
 
+class CharacterReactionEvent(DomainEvent):
+    """A concise player-facing summary when an addressed agent has no visible result."""
+
+    command_type: str
+    summary: str
+
+
 class CommandExpiredEvent(DomainEvent):
     command_id: str
     command_type: str
@@ -947,6 +954,7 @@ __all__ = [
     "CharacterPickpocketedEvent",
     "CharacterClaimedEvent",
     "CharacterChatRequestedEvent",
+    "CharacterReactionEvent",
     "CharacterRevivedEvent",
     "CombatChallengeEvent",
     "CommandAcceptedEvent",

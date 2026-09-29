@@ -152,6 +152,11 @@ activity your character can perceive in its current room. Room-scoped events fro
 elsewhere are not shown. High-frequency bookkeeping is suppressed to keep the feed
 readable.
 
+When you address an autonomous character by name, the log also shows a short reaction
+summary if that character's action has no visible world event, such as waiting or having
+an action rejected. This confirms that the character responded without exposing its
+private prompt or model reasoning.
+
 After your character moves through an exit, the REPL shows the destination-room summary so
 you can immediately decide what to do next.
 

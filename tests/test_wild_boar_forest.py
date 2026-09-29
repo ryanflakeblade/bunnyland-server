@@ -409,13 +409,14 @@ async def player_turn_scene(scene):
             self.calls = []
             self.ready = asyncio.Event()
             self.ready.set()
+            self.next_call = ToolCall("say", {"text": "听见了。"})
 
         async def decide(
             self, prompt, context, *, character_id, model=None, provider=None, tools=None
         ):
             self.calls.append((character_id, context))
             await self.ready.wait()
-            return ToolCall("say", {"text": "听见了。"})
+            return self.next_call
 
     agent = RecordingAgent()
     dispatch = PlayerTurnDispatch(actor, builder(actor), agent)
@@ -453,6 +454,64 @@ async def test_player_turn_idle_named_speech_and_no_ai_chain(player_turn_scene):
     await act(actor, result, "lu", tool="move", direction="不存在")
     await dispatch.run_once()
     assert len(agent.calls) == 1
+
+
+async def test_player_addressed_agent_reaction_is_narrated_when_no_visible_result(
+    player_turn_scene,
+):
+    from bunnyland.core.events import CharacterReactionEvent
+
+    actor, result, dispatch, agent = player_turn_scene
+    agent.next_call = ToolCall("wait", {})
+    reactions: list[CharacterReactionEvent] = []
+    actor.bus.subscribe(CharacterReactionEvent, reactions.append)
+
+    await act(actor, result, "lu", tool="move", direction="现身")
+    await dispatch.run_once()
+    await dispatch.await_pending()
+    await actor.tick(1)
+    await dispatch.run_once()
+    await dispatch.await_pending()
+    reactions.clear()
+    agent.calls.clear()
+
+    await act(actor, result, "lu", tool="say", text="林冲，你为什么还不走？")
+    await dispatch.run_once()
+    await dispatch.await_pending()
+    await actor.tick(1)
+
+    assert len(reactions) == 1
+    assert reactions[0].actor_id == str(result.characters["lin"])
+    assert reactions[0].target_ids == (str(result.characters["lu"]),)
+    assert reactions[0].command_type == "wait"
+    assert reactions[0].summary == "暂时没有行动。"
+
+
+async def test_player_addressed_agent_rejection_is_narrated(player_turn_scene):
+    from bunnyland.core.events import CharacterReactionEvent
+
+    actor, result, dispatch, agent = player_turn_scene
+    agent.next_call = ToolCall("forest_scene", {"choice": "行凶"})
+    reactions: list[CharacterReactionEvent] = []
+    actor.bus.subscribe(CharacterReactionEvent, reactions.append)
+
+    await act(actor, result, "lu", tool="move", direction="现身")
+    await dispatch.run_once()
+    await dispatch.await_pending()
+    await actor.tick(1)
+    await dispatch.run_once()
+    await dispatch.await_pending()
+    reactions.clear()
+
+    await act(actor, result, "lu", tool="say", text="林冲，你来做决定。")
+    await dispatch.run_once()
+    await dispatch.await_pending()
+    await actor.tick(1)
+
+    assert len(reactions) == 1
+    assert reactions[0].actor_id == str(result.characters["lin"])
+    assert reactions[0].command_type == "forest-scene"
+    assert reactions[0].summary == "动作被拒绝：choice is not available to this role"
 
 
 async def test_player_turn_merges_events_during_inflight_request(player_turn_scene):

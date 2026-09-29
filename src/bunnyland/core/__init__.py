@@ -136,6 +136,7 @@ from .edges import (
 from .events import (
     CharacterClaimedEvent,
     CharacterGeneratedEvent,
+    CharacterReactionEvent,
     CharacterWokeEvent,
     ContainerClosedEvent,
     ContainerOpenedEvent,
@@ -274,6 +275,7 @@ __all__ = [
     "CharacterComponent",
     "CharacterClaimedEvent",
     "CharacterGeneratedEvent",
+    "CharacterReactionEvent",
     "ClaimedComponent",
     "ClaimTimeoutComponent",
     "ClaimTimeoutSystem",

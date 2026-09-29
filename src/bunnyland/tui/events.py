@@ -183,6 +183,9 @@ class EventNarrator:
             if intents:
                 line.append("\n    [" + "；".join(intents) + "]", style="dim")
             return line
+        if event_type == "CharacterReactionEvent":
+            actor = name_for(event.get("actor_id") or "") or "Someone"
+            return Text(f"{actor}：{event.get('summary', '')}", style="dim")
         label = _humanize_event_type(event_type)
         icon = _event_icon(event_type, event) if show_icons else ""
         actor = name_for(event.get("actor_id") or "") if event.get("actor_id") else None
