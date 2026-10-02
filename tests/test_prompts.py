@@ -54,6 +54,7 @@ from bunnyland.prompts import (
     PromptBuilder,
     PromptFact,
     PromptPerspective,
+    render_compact_prompt,
     render_prompt,
 )
 from bunnyland.prompts.builder import _status
@@ -1095,6 +1096,19 @@ def test_render_prompt_matches_foundation_layout():
     assert "Points:" in text
     assert "Action: 5.0/5.0" in text
     assert "Available commands:" in text
+
+
+def test_render_compact_prompt_preserves_scoped_facts_with_less_text():
+    scenario = build_scenario()
+    context = PromptBuilder(scenario.actor.world).build(scenario.character)
+
+    compact = render_compact_prompt(context)
+
+    assert "character: Juniper" in compact
+    assert "location:" in compact
+    assert "exits:" in compact
+    assert "available_actions:" in compact
+    assert len(compact) < len(render_prompt(context))
 
 
 def test_recent_context_appears_in_prompt():

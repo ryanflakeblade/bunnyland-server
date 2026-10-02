@@ -49,7 +49,12 @@ from ..core.events import (
 )
 from ..core.world_actor import WorldActor
 from ..narration.projection import event_salience, event_summary, event_visible_to
-from ..prompts.builder import PerceivedPromptEvent, PromptBuilder, PromptContext, render_prompt
+from ..prompts.builder import (
+    PerceivedPromptEvent,
+    PromptBuilder,
+    PromptContext,
+    render_compact_prompt,
+)
 from ..prompts.filters import PromptFilterRuntime, apply_prompt_filters
 from .agent import (
     AgentDecision,
@@ -884,7 +889,7 @@ class ControllerDispatch:
             omitted_perceived_events=event_batch.omitted,
             omitted_event_epoch_range=event_batch.omitted_epoch_range,
         )
-        prompt = render_prompt(context)
+        prompt = render_compact_prompt(context)
         metric_attrs = {
             "provider": projection.provider or "local",
             "model": projection.model or "unknown",

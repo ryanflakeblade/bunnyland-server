@@ -4328,6 +4328,7 @@ def create_app(
             "Mcp-Protocol-Version",
             "Mcp-Session-Id",
         ],
+        expose_headers=["X-Bunnyland-Claim-Secret", "Location"],
     )
     return app
 

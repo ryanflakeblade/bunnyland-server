@@ -578,10 +578,57 @@ def render_prompt(context: PromptContext) -> str:
     return "\n".join(lines).rstrip() + "\n"
 
 
+def render_compact_prompt(context: PromptContext) -> str:
+    """Render scoped context in a compact format for model requests."""
+
+    lines = [
+        UNTRUSTED_CONTEXT_NOTICE,
+        "",
+        f"character: {context.name} ({context.kind}; {context.status})",
+    ]
+    location = context.room_summary or context.location_title
+    if location:
+        lines.append(f"location: {context.location_title} | {location}")
+
+    def field(name: str, values: tuple[str, ...]) -> None:
+        if values:
+            lines.append(f"{name}: " + " | ".join(values))
+
+    field("visible", context.visible_characters + context.visible_objects)
+    field("exits", context.exits)
+    field("inventory", context.inventory)
+    field("held", context.held)
+    field("other_held", context.other_held)
+    field("worn", context.worn)
+    field("persona", context.persona)
+    field("feelings", context.feelings)
+    field("conditions", context.conditions)
+    field("social", context.social_cues)
+    field("recent", context.recent)
+    field("notes", context.notes)
+    field("recall", context.recall)
+    field("observed", tuple(event.summary for event in context.perceived_events))
+    if context.omitted_perceived_events:
+        epoch_range = context.omitted_event_epoch_range
+        suffix = f" ({epoch_range[0]}-{epoch_range[1]})" if epoch_range else ""
+        lines.append(f"observed_omitted: {context.omitted_perceived_events}{suffix}")
+    lines.extend(
+        (
+            "",
+            f"points: action={context.action[0]}/{context.action[1]}; "
+            f"focus={context.focus[0]}/{context.focus[1]}",
+        )
+    )
+    field("available_actions", context.commands)
+    field("warnings", context.warnings)
+    return "\n".join(lines).rstrip() + "\n"
+
+
 __all__ = [
     "PerceivedPromptEvent",
     "PromptBuilder",
     "PromptContext",
     "UNTRUSTED_CONTEXT_NOTICE",
+    "render_compact_prompt",
     "render_prompt",
 ]
